@@ -49,6 +49,10 @@ td.r,th.r{text-align:right}
 .tag{display:inline-block;width:6px;height:16px;vertical-align:middle;margin-right:8px}
 .gh td{background:var(--line);font-weight:900;font-style:italic}
 .wrap{overflow-x:auto}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chips label{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);padding:10px 14px;font-weight:700;cursor:pointer}
+.chips input{width:20px;height:20px;accent-color:var(--red)}
+.paused .clock{opacity:.45}
 .stat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .stat div{background:var(--panel);padding:10px 16px;border-top:3px solid var(--red)}
 .stat b{display:block;font-size:24px}
@@ -75,8 +79,10 @@ td.r,th.r{text-align:right}
 </section>
 
 <section id="race" class="view">
+  <div class="board" id="pick" style="padding:14px"><div class="cur-group">Groups to run (tick one or more)</div><div class="chips" id="chips"></div></div>
   <div class="banner" id="banner"></div>
-  <div class="board">
+  <div class="banner" id="pbanner"></div>
+  <div class="board" id="boardBox">
     <div class="cur-group" id="curGroup">Ready</div>
     <div class="cur-task" id="curTask">Press start</div>
     <div class="clock num" id="clock">0:00.0</div>
@@ -134,6 +140,7 @@ function show(v){
   $$(".view").forEach(e=>e.classList.toggle("on",e.id===v));
   $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   if(v==="stats")renderStats();
+  if(v==="race")renderPick();
 }
 $$("nav button").forEach(b=>b.onclick=()=>show(b.dataset.v));
 
@@ -172,6 +179,15 @@ $("#addGroup").onclick=()=>{S.groups.push({name:"Group "+(S.groups.length+1),tas
 $("#goRace").onclick=()=>show("race");
 
 /* race */
+function renderPick(){
+  const gs=S.groups.filter(g=>g.tasks.length);
+  $("#chips").innerHTML=gs.map((g,i)=>`<label><input type="checkbox" data-sel="${i}" ${(!S.sel||S.sel.includes(g.name))?"checked":""}>${esc(g.name)} <span style="color:var(--dim);font-weight:400">${g.tasks.length}</span></label>`).join("")||'<span class="hint">No groups with tasks. Add some in Setup.</span>';
+}
+$("#chips").addEventListener("change",()=>{
+  const gs=S.groups.filter(g=>g.tasks.length);
+  S.sel=[...document.querySelectorAll("#chips input")].filter(c=>c.checked).map(c=>gs[+c.dataset.sel].name);
+  save();
+});
 let R=null,tick=null;
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 const bestFor=(g,t)=>{
@@ -180,18 +196,20 @@ const bestFor=(g,t)=>{
   return b;
 };
 function startRace(){
-  const groups=S.groups.filter(g=>g.tasks.length);
-  if(!groups.length){alert("Add at least one task in Setup first.");show("setup");return}
+  const withTasks=S.groups.filter(g=>g.tasks.length);
+  if(!withTasks.length){alert("Add at least one task in Setup first.");show("setup");return}
+  const groups=withTasks.filter(g=>!S.sel||S.sel.includes(g.name));
+  if(!groups.length){alert("Tick at least one group to run.");return}
   // queue: groups in order, tasks shuffled within each group
   const queue=[];
   groups.forEach(g=>shuffle(g.tasks).forEach(t=>queue.push({group:g.name,task:t})));
-  R={queue,i:0,laps:[],t0:performance.now(),acc:0,paused:false,lapStart:0};
+  R={queue,i:0,laps:[],t0:Date.now(),acc:0,paused:false,lapStart:0};
   $("#laps tbody").innerHTML="";
-  $("#banner").style.display="none";
+  $("#banner").style.display="none";$("#pbanner").style.display="none";
   setRunUI(true);showCurrent();
   clearInterval(tick);tick=setInterval(draw,50);
 }
-function elapsed(){return R.paused?R.acc:R.acc+(performance.now()-R.t0)}
+function elapsed(){return R.paused?R.acc:R.acc+(Date.now()-R.t0)}
 function draw(){
   if(!R)return;
   $("#clock").textContent=fmt(elapsed()-R.lapStart);
@@ -203,7 +221,17 @@ function showCurrent(){
   $("#bar").style.width=(R.i/R.queue.length*100)+"%";
   $("#next").textContent=R.i===R.queue.length-1?"Finish":"Next task";
 }
+let wl=null;
+async function lockOn(){try{wl=await navigator.wakeLock.request("screen")}catch(e){}}
+function lockOff(){try{wl&&wl.release()}catch(e){}wl=null}
+document.addEventListener("visibilitychange",()=>{
+  if(!R)return;
+  if(document.visibilityState==="hidden")setPaused(true,"AUTO-PAUSED: you left the app. Your lap is on hold. Tap Resume to continue.");
+  else{draw();lockOn()}
+});
 function setRunUI(on){
+  if(on)lockOn();else{lockOff();$("#pbanner").style.display="none";$("#boardBox").classList.remove("paused")}
+  $("#pick").style.display=on?"none":"";
   $("#start").style.display=on?"none":"";
   ["#next","#pause","#abort","#keyhint"].forEach(s=>$(s).style.display=on?"":"none");
 }
@@ -246,11 +274,14 @@ function finish(){
 }
 $("#start").onclick=startRace;
 $("#next").onclick=nextTask;
-$("#pause").onclick=()=>{
-  if(!R)return;
-  if(R.paused){R.t0=performance.now();R.paused=false;$("#pause").textContent="Pause"}
-  else{R.acc+=performance.now()-R.t0;R.paused=true;$("#pause").textContent="Resume"}
-};
+function setPaused(p,msg){
+  if(!R||R.paused===p)return;
+  const pb=$("#pbanner");
+  if(p){R.acc+=Date.now()-R.t0;R.paused=true;$("#pause").textContent="Resume";$("#boardBox").classList.add("paused");
+    pb.textContent=msg||"PAUSED. Tap Resume when you are ready.";pb.style.display="block";draw()}
+  else{R.t0=Date.now();R.paused=false;$("#pause").textContent="Pause";$("#boardBox").classList.remove("paused");pb.style.display="none"}
+}
+$("#pause").onclick=()=>{if(R)setPaused(!R.paused)};
 $("#abort").onclick=()=>{
   if(!confirm("Abort this session? Laps from it will not be saved."))return;
   clearInterval(tick);R=null;setRunUI(false);
