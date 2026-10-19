@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Lap Timer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15151e">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#15151e;--panel:#1f1f2b;--line:#33334a;--fg:#f2f2f5;--dim:#9a9ab0;--red:#e10600;--purple:#b138dd;--green:#00d26a;--yellow:#ffd400}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;font-size:16px}
+.num{font-variant-numeric:tabular-nums;font-family:"SF Mono",Menlo,Consolas,monospace}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:3px solid var(--red);flex-wrap:wrap}
+header h1{margin:0;font-size:22px;font-style:italic;font-weight:900;letter-spacing:.5px}
+nav{display:flex;gap:4px}[hidden]{display:none!important}#modeBtn{margin-left:auto}
+nav button{background:none;border:0;color:var(--dim);padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;border-bottom:3px solid transparent}
+nav button.on{color:var(--fg);border-color:var(--fg)}
+main{max-width:900px;margin:0 auto;padding:20px}
+.view{display:none}.view.on{display:block}
+button.btn{background:var(--red);color:#fff;border:0;padding:12px 22px;font:inherit;font-weight:900;font-style:italic;font-size:18px;cursor:pointer;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
+button.btn.alt{background:var(--line)}
+button.btn:focus-visible,nav button:focus-visible,input:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+input{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:9px 10px;font:inherit}
+.group{background:var(--panel);border-left:5px solid var(--red);padding:12px 14px;margin-bottom:14px}
+.group h3{margin:0 0 10px;display:flex;gap:8px;align-items:center}
+.group h3 input{flex:1;font-weight:700}
+.task{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+.task span{flex:1}
+.x{background:none;border:0;color:var(--dim);cursor:pointer;font-size:18px}
+.add{display:flex;gap:8px;margin-top:8px}.add input{flex:1}
+.hint{color:var(--dim);margin:0 0 14px}
+/* race */
+.board{background:var(--panel);padding:22px;border-left:5px solid var(--red);margin-bottom:16px}
+.cur-group{color:var(--dim);font-weight:700}
+.cur-task{font-size:clamp(28px,6vw,48px);font-weight:900;font-style:italic;margin:4px 0 8px}
+.clock{font-size:clamp(48px,14vw,104px);font-weight:700;line-height:1}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.prog{height:6px;background:var(--line);margin-top:16px}.prog>div{height:100%;background:var(--red);width:0}
+.banner{background:var(--yellow);color:#000;font-weight:900;font-style:italic;padding:10px 14px;margin-bottom:12px;display:none}
+table{width:100%;border-collapse:collapse}
+th{color:var(--dim);text-align:left;font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right}
+.pos{width:34px;color:var(--dim)}
+.purple{color:var(--purple);font-weight:700}.green{color:var(--green)}.yellow{color:var(--yellow)}
+.tag{display:inline-block;width:6px;height:16px;vertical-align:middle;margin-right:8px}
+.gh td{background:var(--line);font-weight:900;font-style:italic}
+.wrap{overflow-x:auto}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chips label{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);padding:10px 14px;font-weight:700;cursor:pointer}
+.chips input{width:20px;height:20px;accent-color:var(--red)}
+.paused .clock{opacity:.45}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tb{position:relative;min-height:112px;background:var(--panel);border:0;border-left:8px solid var(--c);color:var(--fg);font:inherit;padding:14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}
+.tb b{font-size:22px;font-style:italic;padding-right:30px}.tb small{color:var(--dim);font-size:15px}.tb.run{background:var(--c)}.tb.run small{color:#fff;font-size:22px;font-weight:700}
+.ring{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),#ffffff33 0);-webkit-mask:radial-gradient(circle,#0000 52%,#000 54%);mask:radial-gradient(circle,#0000 52%,#000 54%)}
+#toast{position:fixed;left:12px;right:12px;bottom:16px;background:var(--yellow);color:#000;font-weight:900;padding:12px 14px;z-index:20;text-align:center}
+#modal{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;padding:20px;z-index:15}
+label.opt,.group label{display:block;margin:8px 0;color:var(--dim)}
+.stat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat div{background:var(--panel);padding:10px 16px;border-top:3px solid var(--red)}
+.stat b{display:block;font-size:24px}
+.stat small{color:var(--dim)}
+@media(max-width:600px){#next,#start{flex:1 1 100%;font-size:26px;padding:24px}#pause,#abort{flex:1}}
+@media (prefers-reduced-motion:no-preference){.prog>div{transition:width .3s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>TASK LAP TIMER</h1>
+  <button class="btn alt" id="modeBtn" style="font-size:14px;padding:8px 14px">Free mode</button>
+  <nav id="navL">
+    <button data-v="setup" class="on">Setup</button>
+    <button data-v="race">Race</button>
+    <button data-v="stats">Results</button>
+  </nav>
+  <nav id="navF" hidden><button data-v="fdo" class="on">Do</button><button data-v="fset">Setup</button><button data-v="fdata">Data</button></nav>
+</header>
+<main>
+
+<section id="setup" class="view on">
+  <p class="hint">Make groups in the order you want to do them. Tasks inside a group come up in random order. A group must be finished before the next one starts.</p>
+  <div id="groups"></div>
+  <div class="row"><button class="btn alt" id="addGroup">Add group</button><button class="btn" id="goRace">Go to race</button></div>
+</section>
+
+<section id="race" class="view">
+  <div class="board" id="pick" style="padding:14px"><div class="cur-group">Groups to run (tick one or more)</div><div class="chips" id="chips"></div></div>
+  <div class="banner" id="banner"></div>
+  <div class="banner" id="pbanner"></div>
+  <div class="board" id="boardBox">
+    <div class="cur-group" id="curGroup">Ready</div>
+    <div class="cur-task" id="curTask">Press start</div>
+    <div class="clock num" id="clock">0:00.0</div>
+    <div class="prog"><div id="bar"></div></div>
+    <div class="row">
+      <button class="btn" id="start">Start</button>
+      <button class="btn" id="next" style="display:none">Next task</button>
+      <button class="btn alt" id="pause" style="display:none">Pause</button>
+      <button class="btn alt" id="abort" style="display:none">Abort</button>
+      <span class="hint" id="keyhint" style="margin:0;display:none">Space = next task</span>
+    </div>
+  </div>
+  <div class="wrap"><table id="laps"><thead><tr><th class="pos">#</th><th>Task</th><th class="r">Lap</th><th class="r">Vs best</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="stats" class="view">
+  <div class="stat" id="summary"></div>
+  <div class="row" style="margin:0 0 16px">
+    <button class="btn alt" id="expCsv">Save CSV</button>
+    <button class="btn alt" id="expJson">Save backup</button>
+    <button class="btn alt" id="impBtn">Load backup</button>
+    <input type="file" id="impFile" accept=".json" hidden>
+    <button class="btn alt" id="clearHist">Clear history</button>
+  </div>
+  <p class="hint">Consistency = how tightly your laps cluster around your average (100% means identical every time). Needs 2+ laps.</p>
+  <div class="wrap"><table id="statTable"><thead><tr><th>Task</th><th class="r">Laps</th><th class="r">Best</th><th class="r">Average</th><th class="r">Consistency</th></tr></thead><tbody></tbody></table></div>
+  <h3 style="margin-top:28px">Session history</h3>
+  <div class="wrap"><table id="sessTable"><thead><tr><th>Date</th><th class="r">Tasks</th><th class="r">Total time</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="fdo" class="view"><div class="board" id="fstat"></div><div class="grid" id="fgrid"></div></section>
+
+<section id="fset" class="view">
+  <p class="hint">Each task becomes a big button on the Do page. Tap the dot to change its colour.</p>
+  <div id="ftasks"></div>
+  <div class="add"><input id="fnew" placeholder="New task"><button class="btn alt" id="fadd" style="font-size:15px;padding:8px 16px">Add task</button></div>
+  <div class="group" style="margin-top:16px"><h3>Options</h3>
+    <label><input type="checkbox" id="oAsk"> Ask what to do with the current task when I switch (save or count as lost)</label>
+    <label><input type="checkbox" id="oAuto"> Pause when I leave the app or lock the phone</label>
+    <label>Ignore sessions under <input type="number" id="oMin" min="0" style="width:70px"> seconds</label>
+    <label>Nudge me after <input type="number" id="oNudge" min="0" style="width:70px"> minutes on one task (0 = off)</label>
+  </div>
+  <button class="btn alt" id="fImp">Import tasks from lap mode</button>
+</section>
+
+<section id="fdata" class="view">
+  <div class="stat" id="fsum"></div>
+  <div class="row" style="margin:0 0 16px"><button class="btn alt" id="fCsv">Save CSV</button><button class="btn alt" id="fJson">Save backup</button></div>
+  <p class="hint">Steady = how similar your session lengths are. Days = days with this task in the last 14. Lap-mode laps are included for tasks with the same name.</p>
+  <div class="wrap"><table id="fTable"><thead><tr><th>Task</th><th class="r">Today</th><th class="r">7 days</th><th class="r">Total</th><th class="r">Sessions</th><th class="r">Avg</th><th class="r">Longest</th><th class="r">Steady</th><th class="r">Days</th></tr></thead><tbody></tbody></table></div>
+  <h3 style="margin-top:24px">Weekly report</h3><div class="wrap"><table id="fWeek"></table></div>
+  <h3 style="margin-top:24px">Last 14 days</h3><div id="fbars" style="display:flex;gap:4px;align-items:flex-end;min-height:100px"></div>
+  <h3 style="margin-top:24px">Recent sessions</h3><div class="wrap"><table id="fLog"><thead><tr><th>When</th><th>Task</th><th class="r">Length</th><th>Note</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<div id="modal" hidden><div class="board" style="max-width:420px;width:100%"><div class="cur-group">Finish this task?</div><div class="cur-task" id="mTask" style="font-size:26px"></div><input id="mNote" placeholder="Note (optional)" style="width:100%"><div class="row"><button class="btn" id="mSave">Save</button><button class="btn alt" id="mLost">Count as lost</button><button class="btn alt" id="mKeep">Keep going</button></div></div></div>
+<div id="toast" hidden></div>
+</main>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const KEY="taskLapTimer.v1";
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.groups)S={groups:[
+  {name:"Morning",tasks:["Bath","Laundry"]},
+  {name:"Admin",tasks:["Track finances","Reply to emails"]}
+],history:[]};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function fmt(ms,dec=1){
+  const t=Math.max(0,ms)/1000,m=Math.floor(t/60),s=t-m*60;
+  return m+":"+(s<10?"0":"")+s.toFixed(dec);
+}
+function fmtLong(ms){
+  const t=Math.round(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;
+  return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(s).padStart(2,"0");
+}
+
+/* nav */
+function show(v){
+  $$(".view").forEach(e=>e.classList.toggle("on",e.id===v));
+  $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  if(v==="stats")renderStats();
+  if(v==="race")renderPick();
+  if(v==="fdo")renderFree();if(v==="fset")renderFSet();if(v==="fdata")renderFData();
+}
+$$("nav button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+
+/* setup */
+function renderSetup(){
+  $("#groups").innerHTML=S.groups.map((g,gi)=>`
+    <div class="group">
+      <h3><span class="num" style="color:var(--dim)">G${gi+1}</span>
+        <input value="${esc(g.name)}" data-gname="${gi}" aria-label="Group name">
+        <button class="x" data-up="${gi}" title="Move up">↑</button>
+        <button class="x" data-down="${gi}" title="Move down">↓</button>
+        <button class="x" data-delg="${gi}" title="Delete group">✕</button></h3>
+      ${g.tasks.map((t,ti)=>`<div class="task"><span>${esc(t)}</span><button class="x" data-delt="${gi}:${ti}" title="Remove task">✕</button></div>`).join("")}
+      <div class="add"><input placeholder="New task" data-newt="${gi}"><button class="btn alt" data-addt="${gi}" style="font-size:15px;padding:8px 16px">Add task</button></div>
+    </div>`).join("")||'<p class="hint">No groups yet. Add one to begin.</p>';
+}
+$("#groups").addEventListener("click",e=>{
+  const d=e.target.dataset;
+  if(d.delg!==undefined)S.groups.splice(+d.delg,1);
+  else if(d.delt!==undefined){const[g,t]=d.delt.split(":");S.groups[g].tasks.splice(+t,1)}
+  else if(d.addt!==undefined){addTask(+d.addt);return}
+  else if(d.up!==undefined&&+d.up>0){const i=+d.up;[S.groups[i-1],S.groups[i]]=[S.groups[i],S.groups[i-1]]}
+  else if(d.down!==undefined&&+d.down<S.groups.length-1){const i=+d.down;[S.groups[i+1],S.groups[i]]=[S.groups[i],S.groups[i+1]]}
+  else return;
+  save();renderSetup();
+});
+$("#groups").addEventListener("input",e=>{if(e.target.dataset.gname!==undefined){S.groups[+e.target.dataset.gname].name=e.target.value;save()}});
+$("#groups").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.newt!==undefined)addTask(+e.target.dataset.newt)});
+function addTask(gi){
+  const inp=document.querySelector(`[data-newt="${gi}"]`),v=inp.value.trim();
+  if(!v)return;
+  S.groups[gi].tasks.push(v);save();renderSetup();
+  document.querySelector(`[data-newt="${gi}"]`).focus();
+}
+$("#addGroup").onclick=()=>{S.groups.push({name:"Group "+(S.groups.length+1),tasks:[]});save();renderSetup()};
+$("#goRace").onclick=()=>show("race");
+
+/* race */
+function renderPick(){
+  const gs=S.groups.filter(g=>g.tasks.length);
+  $("#chips").innerHTML=gs.map((g,i)=>`<label><input type="checkbox" data-sel="${i}" ${(!S.sel||S.sel.includes(g.name))?"checked":""}>${esc(g.name)} <span style="color:var(--dim);font-weight:400">${g.tasks.length}</span></label>`).join("")||'<span class="hint">No groups with tasks. Add some in Setup.</span>';
+}
+$("#chips").addEventListener("change",()=>{
+  const gs=S.groups.filter(g=>g.tasks.length);
+  S.sel=[...document.querySelectorAll("#chips input")].filter(c=>c.checked).map(c=>gs[+c.dataset.sel].name);
+  save();
+});
+let R=null,tick=null;
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const bestFor=(g,t)=>{
+  let b=null;
+  S.history.forEach(h=>h.laps.forEach(l=>{if(l.group===g&&l.task===t&&(b===null||l.ms<b))b=l.ms}));
+  return b;
+};
+function startRace(){
+  const withTasks=S.groups.filter(g=>g.tasks.length);
+  if(!withTasks.length){alert("Add at least one task in Setup first.");show("setup");return}
+  const groups=withTasks.filter(g=>!S.sel||S.sel.includes(g.name));
+  if(!groups.length){alert("Tick at least one group to run.");return}
+  // queue: groups in order, tasks shuffled within each group
+  const queue=[];
+  groups.forEach(g=>shuffle(g.tasks).forEach(t=>queue.push({group:g.name,task:t})));
+  R={queue,i:0,laps:[],t0:Date.now(),acc:0,paused:false,lapStart:0};
+  $("#laps tbody").innerHTML="";
+  $("#banner").style.display="none";$("#pbanner").style.display="none";
+  setRunUI(true);showCurrent();
+  clearInterval(tick);tick=setInterval(draw,50);
+}
+function elapsed(){return R.paused?R.acc:R.acc+(Date.now()-R.t0)}
+function draw(){
+  if(!R)return;
+  $("#clock").textContent=fmt(elapsed()-R.lapStart);
+}
+function showCurrent(){
+  const q=R.queue[R.i];
+  $("#curGroup").textContent=q.group+"  ·  task "+(R.i+1)+" of "+R.queue.length;
+  $("#curTask").textContent=q.task;
+  $("#bar").style.width=(R.i/R.queue.length*100)+"%";
+  $("#next").textContent=R.i===R.queue.length-1?"Finish":"Next task";
+}
+let wl=null;
+async function lockOn(){try{wl=await navigator.wakeLock.request("screen")}catch(e){}}
+function lockOff(){try{wl&&wl.release()}catch(e){}wl=null}
+document.addEventListener("visibilitychange",()=>{
+  if(!R)return;
+  if(document.visibilityState==="hidden")setPaused(true,"AUTO-PAUSED: you left the app. Your lap is on hold. Tap Resume to continue.");
+  else{draw();lockOn()}
+});
+function setRunUI(on){
+  if(on)lockOn();else{lockOff();$("#pbanner").style.display="none";$("#boardBox").classList.remove("paused")}
+  $("#pick").style.display=on?"none":"";
+  $("#start").style.display=on?"none":"";
+  ["#next","#pause","#abort","#keyhint"].forEach(s=>$(s).style.display=on?"":"none");
+}
+function nextTask(){
+  if(!R||R.paused)return;
+  const now=elapsed(),q=R.queue[R.i],ms=now-R.lapStart;
+  const prevBest=bestFor(q.group,q.task);
+  R.laps.push({group:q.group,task:q.task,ms});
+  addLapRow(R.laps.length,q,ms,prevBest);
+  R.lapStart=now;R.i++;
+  if(R.i>=R.queue.length)return finish();
+  const nq=R.queue[R.i];
+  if(nq.group!==q.group){
+    const b=$("#banner");b.textContent="GROUP COMPLETE: "+q.group+". Next up: "+nq.group;b.style.display="block";
+  }else $("#banner").style.display="none";
+  showCurrent();
+}
+function addLapRow(n,q,ms,prevBest){
+  let cls="yellow",delta="first lap";
+  if(prevBest!==null){
+    const d=ms-prevBest;
+    delta=(d<=0?"-":"+")+(Math.abs(d)/1000).toFixed(1)+"s";
+    cls=d<0?"purple":(d<prevBest*0.1?"green":"yellow");
+  }else cls="purple";
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td class="pos num">${n}</td><td><span class="tag" style="background:var(--${cls==="yellow"?"yellow":cls==="green"?"green":"purple"})"></span>${esc(q.task)} <span style="color:var(--dim)">${esc(q.group)}</span></td><td class="r num ${cls}">${fmt(ms)}</td><td class="r num ${cls}">${delta}</td>`;
+  $("#laps tbody").prepend(tr);
+}
+function finish(){
+  clearInterval(tick);
+  const total=R.laps.reduce((a,l)=>a+l.ms,0);
+  S.history.push({date:new Date().toISOString(),total,laps:R.laps});
+  save();
+  $("#bar").style.width="100%";
+  $("#curGroup").textContent="Chequered flag";
+  $("#curTask").textContent="All tasks done";
+  $("#clock").textContent=fmtLong(total);
+  const b=$("#banner");b.textContent="SESSION SAVED. Total time "+fmtLong(total)+". Check Results for consistency.";b.style.display="block";
+  R=null;setRunUI(false);$("#start").textContent="Start again";
+}
+$("#start").onclick=startRace;
+$("#next").onclick=nextTask;
+function setPaused(p,msg){
+  if(!R||R.paused===p)return;
+  const pb=$("#pbanner");
+  if(p){R.acc+=Date.now()-R.t0;R.paused=true;$("#pause").textContent="Resume";$("#boardBox").classList.add("paused");
+    pb.textContent=msg||"PAUSED. Tap Resume when you are ready.";pb.style.display="block";draw()}
+  else{R.t0=Date.now();R.paused=false;$("#pause").textContent="Pause";$("#boardBox").classList.remove("paused");pb.style.display="none"}
+}
+$("#pause").onclick=()=>{if(R)setPaused(!R.paused)};
+$("#abort").onclick=()=>{
+  if(!confirm("Abort this session? Laps from it will not be saved."))return;
+  clearInterval(tick);R=null;setRunUI(false);
+  $("#curGroup").textContent="Ready";$("#curTask").textContent="Session aborted";$("#clock").textContent="0:00.0";$("#bar").style.width="0";
+  $("#banner").style.display="none";
+};
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&R&&$("#race").classList.contains("on")&&!/INPUT|BUTTON/.test(e.target.tagName)){e.preventDefault();nextTask()}
+});
+
+/* stats */
+function renderStats(){
+  const map={};
+  S.history.forEach(h=>h.laps.forEach(l=>{(map[l.group+"\u0000"+l.task]??=[]).push(l.ms)}));
+  const rows={};
+  Object.entries(map).forEach(([k,v])=>{
+    const [g,t]=k.split("\u0000");
+    const avg=v.reduce((a,b)=>a+b,0)/v.length;
+    const sd=Math.sqrt(v.reduce((a,b)=>a+(b-avg)**2,0)/v.length);
+    const cons=v.length>1?Math.max(0,100*(1-sd/avg)):null;
+    (rows[g]??=[]).push({t,n:v.length,best:Math.min(...v),avg,cons});
+  });
+  let html="";
+  const order=S.groups.map(g=>g.name);
+  Object.keys(rows).sort((a,b)=>(order.indexOf(a)+99)%99-(order.indexOf(b)+99)%99).forEach(g=>{
+    html+=`<tr class="gh"><td colspan="5">${esc(g)}</td></tr>`;
+    rows[g].forEach(r=>{
+      const c=r.cons===null?"—":r.cons.toFixed(0)+"%";
+      const cc=r.cons===null?"":r.cons>=85?"purple":r.cons>=70?"green":"yellow";
+      html+=`<tr><td>${esc(r.t)}</td><td class="r num">${r.n}</td><td class="r num purple">${fmt(r.best)}</td><td class="r num">${fmt(r.avg)}</td><td class="r num ${cc}">${c}</td></tr>`;
+    });
+  });
+  $("#statTable tbody").innerHTML=html||'<tr><td colspan="5" class="hint">No laps yet. Finish a session to see results.</td></tr>';
+  const H=S.history,totalLaps=H.reduce((a,h)=>a+h.laps.length,0);
+  const bestSess=H.length?Math.min(...H.map(h=>h.total)):null;
+  $("#summary").innerHTML=`<div><b class="num">${H.length}</b><small>sessions</small></div><div><b class="num">${totalLaps}</b><small>laps</small></div><div><b class="num">${bestSess===null?"—":fmtLong(bestSess)}</b><small>fastest session</small></div>`;
+  $("#sessTable tbody").innerHTML=[...H].reverse().map(h=>`<tr><td>${new Date(h.date).toLocaleString()}</td><td class="r num">${h.laps.length}</td><td class="r num">${fmtLong(h.total)}</td></tr>`).join("")||'<tr><td colspan="3" class="hint">Nothing yet.</td></tr>';
+}
+function download(name,text,type){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+}
+$("#expCsv").onclick=()=>{
+  const lines=["date,group,task,seconds"];
+  S.history.forEach(h=>h.laps.forEach(l=>lines.push([h.date,l.group,l.task,(l.ms/1000).toFixed(2)].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(","))));
+  download("lap-times.csv",lines.join("\n"),"text/csv");
+};
+$("#expJson").onclick=()=>download("lap-timer-backup.json",JSON.stringify(S,null,2),"application/json");
+$("#impBtn").onclick=()=>$("#impFile").click();
+$("#impFile").onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  f.text().then(t=>{
+    try{const d=JSON.parse(t);if(!d.groups||!d.history)throw 0;S=d;save();renderSetup();renderStats()}
+    catch(_){alert("That file is not a lap timer backup.")}
+  });
+  e.target.value="";
+};
+$("#clearHist").onclick=()=>{if(confirm("Delete all saved sessions?")){S.history=[];save();renderStats()}};
+
+/* ===== FREE MODE ===== */
+const PAL=["#e10600","#1e90ff","#00b27a","#f5a300","#b138dd","#ff5fa2","#00c2d1","#8bc34a"],DAY=864e5;
+const uid=()=>Math.random().toString(36).slice(2,9);
+function Fr(){return S.free||(S.free={tasks:[],log:[],run:null,minSec:10,nudgeMin:30,ask:true,autoPause:true})}
+const fel=r=>r?r.acc+(r.paused?0:Date.now()-r.start):0;
+const sod=(t=Date.now())=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
+const dk=t=>{const d=new Date(t);return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate()};
+function nameOf(id){if(id==="break")return"Break";const t=Fr().tasks.find(x=>x.id===id);return t?t.name:"?"}
+function entries(){const a=Fr().log.map(e=>({name:e.name,ms:e.ms,end:e.end,kind:e.kind,note:e.note,ref:e}));
+  S.history.forEach(h=>{const t=new Date(h.date).getTime();h.laps.forEach(l=>a.push({name:l.task,ms:l.ms,end:t,kind:"task"}))});return a}
+const sumT=(A,n,from,to=1e15)=>A.filter(e=>e.kind==="task"&&e.name===n&&e.end>=from&&e.end<to).reduce((x,e)=>x+e.ms,0);
+let tt;function toast(m,ms=2500){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,ms)}
+function setMode(m){const fr=m==="free";$("#navL").hidden=fr;$("#navF").hidden=!fr;$("#modeBtn").textContent=fr?"Lap mode":"Free mode";S.mode=m;save();show(fr?"fdo":"setup")}
+$("#modeBtn").onclick=()=>setMode(S.mode==="free"?"lap":"free");
+
+/* run control */
+function startRun(id){Fr().run={id,start:Date.now(),acc:0,paused:false,nudged:false};save();lockOn();renderFree()}
+function endRun(kind,note){const f=Fr(),r=f.run;if(!r)return;const ms=fel(r);f.run=null;
+  if(ms<f.minSec*1000)toast("Under "+f.minSec+"s, ignored");
+  else f.log.push({id:r.id,name:nameOf(r.id),ms,end:Date.now(),kind:r.id==="break"?"break":kind,note:note||""});
+  save();if(!R)lockOff()}
+function pause(){const r=Fr().run;if(!r||r.paused)return;r.acc+=Date.now()-r.start;r.paused=true;save();renderFree()}
+function resume(){const r=Fr().run;if(!r||!r.paused)return;r.start=Date.now();r.paused=false;save();lockOn();renderFree()}
+function undo(){const f=Fr(),e=f.log.pop();if(!e){toast("Nothing to undo");return}
+  f.run={id:e.id,start:Date.now(),acc:e.ms,paused:false,nudged:false};save();lockOn();renderFree();toast("Restored "+e.name)}
+let pend=null;
+function askEnd(cb){const f=Fr(),r=f.run;
+  if(r.id==="break"||!f.ask||fel(r)<f.minSec*1000){endRun("task");cb();return}
+  pend=cb;$("#mTask").textContent=nameOf(r.id)+"  ·  "+fmtLong(fel(r));$("#mNote").value="";$("#modal").hidden=false}
+function fin(k){$("#modal").hidden=true;endRun(k,$("#mNote").value.trim());const c=pend;pend=null;c&&c()}
+$("#mSave").onclick=()=>fin("task");$("#mLost").onclick=()=>fin("waste");
+$("#mKeep").onclick=()=>{$("#modal").hidden=true;pend=null};
+function tap(id){const r=Fr().run;
+  if(r&&r.id===id){r.paused?resume():askEnd(renderFree);return}
+  r?askEnd(()=>startRun(id)):startRun(id)}
+
+/* do page */
+function renderFree(){
+  const f=Fr(),r=f.run,A=entries(),t0=sod(),fs=$("#fstat");
+  fs.classList.toggle("paused",!!(r&&r.paused));
+  fs.innerHTML=r?`<div class="cur-group">${r.paused?"PAUSED":"RUNNING"}</div><div class="cur-task">${esc(nameOf(r.id))}</div><div class="clock num" id="fclock" style="font-size:clamp(44px,12vw,80px)">${fmtLong(fel(r))}</div><div class="row"><button class="btn alt" id="bP">${r.paused?"Resume":"Pause"}</button><button class="btn" id="bS">Stop</button><button class="btn alt" id="bU">Undo</button></div>`
+    :`<div class="cur-group">IDLE</div><div class="cur-task">Tap a task to start</div><div class="row"><button class="btn alt" id="bU">Undo last</button></div>`;
+  const lost=A.filter(e=>e.kind!=="task"&&e.end>=t0).reduce((x,e)=>x+e.ms,0);
+  $("#fgrid").innerHTML=[...f.tasks,{id:"break",name:"Break",color:"#6b6b80",goal:0}].map(t=>{
+    const run=r&&r.id===t.id,tot=t.id==="break"?lost+(run?fel(r):0):sumT(A,t.name,t0)+(run?fel(r):0);
+    const pct=t.goal?Math.min(100,tot/6e4/t.goal*100):0;
+    return`<button class="tb ${run?"run":""}" data-t="${t.id}" style="--c:${t.color}">${t.goal?`<span class="ring" style="--p:${pct}"></span>`:""}<b>${esc(t.name)}</b><small class="num" data-live="${t.id}">${run?fmtLong(fel(r)):"today "+fmtLong(tot)}</small></button>`}).join("");
+}
+$("#fgrid").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b)tap(b.dataset.t)});
+$("#fstat").addEventListener("click",e=>{const id=e.target.id;
+  if(id==="bP")Fr().run.paused?resume():pause();
+  else if(id==="bS")askEnd(renderFree);else if(id==="bU")undo()});
+setInterval(()=>{const f=Fr(),r=f.run;if(!r||r.paused)return;const c=fel(r);
+  const a=$("#fclock");if(a)a.textContent=fmtLong(c);
+  const l=document.querySelector(`[data-live="${r.id}"]`);if(l)l.textContent=fmtLong(c);
+  if(f.nudgeMin&&!r.nudged&&c>f.nudgeMin*6e4){r.nudged=true;save();toast("Still on "+nameOf(r.id)+"? "+f.nudgeMin+" min so far. Switch or stop if you forgot.",9000);try{navigator.vibrate([200,100,200])}catch(e){}}
+},1000);
+document.addEventListener("visibilitychange",()=>{const f=Fr(),r=f.run;if(!r)return;
+  if(document.visibilityState==="hidden"){if(f.autoPause&&!r.paused)pause()}
+  else{renderFree();if(!r.paused)lockOn();else if(f.autoPause)toast("Paused while you were away. Tap Resume.",4000)}});
+
+/* setup page */
+function renderFSet(){const f=Fr();
+  $("#ftasks").innerHTML=f.tasks.map((t,i)=>`<div class="group" style="border-color:${t.color}"><h3><input value="${esc(t.name)}" data-n="${i}" aria-label="Task name"><button class="x" data-c="${i}" style="color:${t.color}" title="Colour">●</button><button class="x" data-u="${i}" title="Move up">↑</button><button class="x" data-d="${i}" title="Delete">✕</button></h3><label>Daily goal <input type="number" min="0" value="${t.goal||0}" data-g="${i}" style="width:80px"> minutes (0 = none)</label></div>`).join("")||'<p class="hint">No tasks yet. Add one below or import from lap mode.</p>';
+  $("#oAsk").checked=f.ask;$("#oAuto").checked=f.autoPause;$("#oMin").value=f.minSec;$("#oNudge").value=f.nudgeMin}
+$("#ftasks").addEventListener("click",e=>{const d=e.target.dataset,f=Fr();
+  if(d.c!==undefined){const t=f.tasks[+d.c];t.color=PAL[(PAL.indexOf(t.color)+1)%PAL.length]}
+  else if(d.u!==undefined&&+d.u>0){const i=+d.u;[f.tasks[i-1],f.tasks[i]]=[f.tasks[i],f.tasks[i-1]]}
+  else if(d.d!==undefined){if(!confirm("Delete this task button? Past sessions stay in your data."))return;f.tasks.splice(+d.d,1)}
+  else return;save();renderFSet()});
+$("#ftasks").addEventListener("input",e=>{const d=e.target.dataset,f=Fr();
+  if(d.n!==undefined)f.tasks[+d.n].name=e.target.value;if(d.g!==undefined)f.tasks[+d.g].goal=+e.target.value||0;save()});
+function addFTask(n){const f=Fr();n=n.trim();if(!n||f.tasks.some(t=>t.name===n))return;f.tasks.push({id:uid(),name:n,color:PAL[f.tasks.length%PAL.length],goal:0})}
+$("#fadd").onclick=()=>{addFTask($("#fnew").value);$("#fnew").value="";save();renderFSet();$("#fnew").focus()};
+$("#fnew").addEventListener("keydown",e=>{if(e.key==="Enter")$("#fadd").click()});
+$("#fImp").onclick=()=>{S.groups.forEach(g=>g.tasks.forEach(addFTask));save();renderFSet()};
+$("#oAsk").onchange=e=>{Fr().ask=e.target.checked;save()};$("#oAuto").onchange=e=>{Fr().autoPause=e.target.checked;save()};
+$("#oMin").onchange=e=>{Fr().minSec=Math.max(0,+e.target.value||0);save()};$("#oNudge").onchange=e=>{Fr().nudgeMin=Math.max(0,+e.target.value||0);save()};
+
+/* data page */
+function renderFData(){
+  const f=Fr(),A=entries(),t0=sod(),T=A.filter(e=>e.kind==="task");
+  const names=[...new Set([...f.tasks.map(t=>t.name),...T.map(e=>e.name)])];
+  const lost=A.filter(e=>e.kind!=="task"&&e.end>=t0).reduce((x,e)=>x+e.ms,0);
+  const todayT=T.filter(e=>e.end>=t0).reduce((x,e)=>x+e.ms,0),weekT=T.filter(e=>e.end>=t0-6*DAY).reduce((x,e)=>x+e.ms,0);
+  $("#fsum").innerHTML=`<div><b class="num">${fmtLong(todayT)}</b><small>task time today</small></div><div><b class="num">${fmtLong(weekT)}</b><small>last 7 days</small></div><div><b class="num yellow">${fmtLong(lost)}</b><small>lost today</small></div>`;
+  $("#fTable tbody").innerHTML=names.map(n=>{
+    const E=T.filter(e=>e.name===n),m=E.map(e=>e.ms),c=m.length,tot=m.reduce((a,b)=>a+b,0),avg=c?tot/c:0;
+    const sd=Math.sqrt(m.reduce((a,b)=>a+(b-avg)**2,0)/(c||1)),cons=c>1?Math.max(0,100*(1-sd/avg)).toFixed(0)+"%":"—";
+    const days=new Set(E.filter(e=>e.end>=t0-13*DAY).map(e=>dk(e.end))).size;
+    return`<tr><td>${esc(n)}</td><td class="r num">${fmtLong(sumT(T,n,t0))}</td><td class="r num">${fmtLong(sumT(T,n,t0-6*DAY))}</td><td class="r num">${fmtLong(tot)}</td><td class="r num">${c}</td><td class="r num">${c?fmtLong(avg):"—"}</td><td class="r num purple">${c?fmtLong(Math.max(...m)):"—"}</td><td class="r num">${cons}</td><td class="r num">${days}/14</td></tr>`}).join("")||'<tr><td colspan="9" class="hint">No data yet.</td></tr>';
+  const dn=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],cols=[];
+  for(let k=6;k>=0;k--)cols.push(t0-k*DAY);
+  $("#fWeek").innerHTML="<thead><tr><th>Task</th>"+cols.map(c=>`<th class="r">${dn[new Date(c).getDay()]}</th>`).join("")+'<th class="r">Total</th><th class="r">vs prev 7d</th></tr></thead><tbody>'+names.map(n=>{
+    const cell=cols.map(c=>{const v=sumT(T,n,c,c+DAY);return`<td class="r num">${v?Math.round(v/6e4)+"m":"·"}</td>`}).join("");
+    const w=sumT(T,n,t0-6*DAY),p=sumT(T,n,t0-13*DAY,t0-6*DAY);
+    const dl=p?((w-p)/p*100).toFixed(0)+"%":"—";
+    return`<tr><td>${esc(n)}</td>${cell}<td class="r num">${fmtLong(w)}</td><td class="r num ${p&&w>=p?"green":"yellow"}">${p&&w>=p?"+":""}${dl}</td></tr>`}).join("")+"</tbody>";
+  const tot14=[];for(let k=13;k>=0;k--){const c=t0-k*DAY;tot14.push([c,T.filter(e=>e.end>=c&&e.end<c+DAY).reduce((a,e)=>a+e.ms,0)])}
+  const mx=Math.max(1,...tot14.map(x=>x[1]));
+  $("#fbars").innerHTML=tot14.map(([c,v])=>`<div style="flex:1;text-align:center"><div style="height:${Math.round(v/mx*80)}px;background:var(--red);min-height:${v?2:0}px" title="${fmtLong(v)}"></div><small style="color:var(--dim)">${new Date(c).getDate()}</small></div>`).join("");
+  $("#fLog tbody").innerHTML=[...f.log].map((e,i)=>[e,i]).reverse().slice(0,30).map(([e,i])=>`<tr><td>${new Date(e.end).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>${esc(e.name)}${e.kind!=="task"?' <span class="yellow">lost</span>':""}</td><td class="r num">${fmtLong(e.ms)}</td><td>${esc(e.note||"")} <button class="x" data-note="${i}" title="Edit note">✎</button></td></tr>`).join("")||'<tr><td colspan="4" class="hint">No sessions yet.</td></tr>'}
+$("#fLog").addEventListener("click",e=>{const i=e.target.dataset.note;if(i===undefined)return;
+  const en=Fr().log[+i],v=prompt("Note for this session:",en.note||"");if(v===null)return;en.note=v.trim();save();renderFData()});
+$("#fCsv").onclick=()=>{const L=["date,task,kind,seconds,note"];
+  Fr().log.forEach(e=>L.push([new Date(e.end).toISOString(),e.name,e.kind,(e.ms/1000).toFixed(0),e.note||""].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")));
+  download("free-mode-sessions.csv",L.join("\n"),"text/csv")};
+$("#fJson").onclick=()=>download("lap-timer-backup.json",JSON.stringify(S,null,2),"application/json");
+if(S.mode==="free")setMode("free");
+
+renderSetup();
+</script>
+<script>if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
+</body>
+</html>
